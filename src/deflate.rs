@@ -669,9 +669,8 @@ fn dist_symbol(dist: u16) -> (usize, u32) {
 fn common_prefix(a: &[u8], b: &[u8]) -> usize {
     const WORD: usize = 8;
     let mut len = 0;
-    for (x, y) in a.chunks_exact(WORD).zip(b.chunks_exact(WORD)) {
-        let x = u64::from_le_bytes(x.try_into().unwrap());
-        let y = u64::from_le_bytes(y.try_into().unwrap());
+    for (x, y) in a.as_chunks::<WORD>().0.iter().zip(b.as_chunks::<WORD>().0) {
+        let (x, y) = (u64::from_le_bytes(*x), u64::from_le_bytes(*y));
         if x != y {
             return len + ((x ^ y).trailing_zeros() / 8) as usize;
         }
