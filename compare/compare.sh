@@ -4,9 +4,9 @@
 #   compare/compare.sh <checkout of miniz> [count] [seeds] [dumps]
 #
 # compare/dump_miniz.c is built against miniz's compressor and decompressor as they build by
-# default, and examples/dump.rs from the port; both run the same made-up data for each seed and
+# default, and examples/dump.rs from the port; both run the same synthetic data for each seed and
 # what they print is compared byte for byte. Dump: miniz, with a hundredth of [count] (200,000
-# by default) as the number of made-up files, each some tens of thousands of bytes, compressed
+# by default) as the number of synthetic files, each some tens of thousands of bytes, compressed
 # three ways and decompressed seven.
 set -u
 if [ $# -lt 1 ]; then

@@ -1,12 +1,12 @@
-//! The Rust half of the comparison with miniz: runs the port over made-up data and
+//! The Rust half of the comparison with miniz: runs the port over synthetic data and
 //! prints a running hash of what comes out, as `compare/dump_miniz.c` does with the original.
 //! `compare/compare.sh` compares the two.
 //!
-//!   dump miniz <seed> <count>   made-up data of eight kinds and many sizes, compressed with
-//!                               flags from every level and strategy and with made-up flags,
-//!                               in one go and in pieces with flushes between; each stream
-//!                               decompressed whole, into too little room, damaged, cut short
-//!                               and with bytes after it; and made-up bytes decompressed
+//!   dump miniz <seed> <count>   synthetic data of eight kinds and many sizes, compressed with
+//!                               the options of every level and strategy and with random options,
+//!                               in one call and in pieces with flushes between; each stream
+//!                               decompressed whole, into too little room, damaged, truncated
+//!                               and with bytes after it; and random bytes decompressed
 
 #[path = "../tests/made_up/mod.rs"]
 mod made_up;

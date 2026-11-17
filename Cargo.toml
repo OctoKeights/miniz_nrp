@@ -1,7 +1,7 @@
 [package]
 name = "miniz_nrp"
-description = "zlib and deflate in pure, safe Rust: a native port of miniz's compressor and decompressor, giving the bytes miniz gives at every level."
-version = "0.1.0"
+description = "zlib and DEFLATE compression in pure, safe Rust: a native port of miniz, bit-identical to it at every level."
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.100"
 license = "MIT"

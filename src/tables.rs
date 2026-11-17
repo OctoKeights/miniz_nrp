@@ -1,9 +1,9 @@
-//! The tables of [`super::tdef`], written out from miniz_tdef.c and miniz.c by a script, so
+//! The tables of the compressor, written out from miniz_tdef.c and miniz.c by a script, so
 //! that no digit was copied by hand.
 
 /// The symbol of a match length (less 3): `s_tdefl_len_sym`.
 #[rustfmt::skip]
-pub(crate) const S_TDEFL_LEN_SYM: [u16; 256] = [
+pub(crate) const LEN_SYM: [u16; 256] = [
     257, 258, 259, 260, 261, 262, 263, 264, 265, 265, 266, 266, 267, 267, 268, 268,
     269, 269, 269, 269, 270, 270, 270, 270, 271, 271, 271, 271, 272, 272, 272, 272,
     273, 273, 273, 273, 273, 273, 273, 273, 274, 274, 274, 274, 274, 274, 274, 274,
@@ -24,7 +24,7 @@ pub(crate) const S_TDEFL_LEN_SYM: [u16; 256] = [
 
 /// The extra bits of a match length (less 3): `s_tdefl_len_extra`.
 #[rustfmt::skip]
-pub(crate) const S_TDEFL_LEN_EXTRA: [u8; 256] = [
+pub(crate) const LEN_EXTRA: [u8; 256] = [
     0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
     4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
@@ -37,7 +37,7 @@ pub(crate) const S_TDEFL_LEN_EXTRA: [u8; 256] = [
 
 /// The symbol of a match distance (less 1) below 512: `s_tdefl_small_dist_sym`.
 #[rustfmt::skip]
-pub(crate) const S_TDEFL_SMALL_DIST_SYM: [u8; 512] = [
+pub(crate) const SMALL_DIST_SYM: [u8; 512] = [
     0, 1, 2, 3, 4, 4, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 9,
     10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
     12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
@@ -58,7 +58,7 @@ pub(crate) const S_TDEFL_SMALL_DIST_SYM: [u8; 512] = [
 
 /// The extra bits of a match distance (less 1) below 512: `s_tdefl_small_dist_extra`.
 #[rustfmt::skip]
-pub(crate) const S_TDEFL_SMALL_DIST_EXTRA: [u8; 512] = [
+pub(crate) const SMALL_DIST_EXTRA: [u8; 512] = [
     0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
     4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
     5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
@@ -80,7 +80,7 @@ pub(crate) const S_TDEFL_SMALL_DIST_EXTRA: [u8; 512] = [
 /// The symbol of a match distance (less 1) of 512 and
 /// above, by its high bits: `s_tdefl_large_dist_sym`.
 #[rustfmt::skip]
-pub(crate) const S_TDEFL_LARGE_DIST_SYM: [u8; 128] = [
+pub(crate) const LARGE_DIST_SYM: [u8; 128] = [
     0, 0, 18, 19, 20, 20, 21, 21, 22, 22, 22, 22, 23, 23, 23, 23, 24, 24, 24, 24, 24, 24, 24, 24, 25, 25, 25, 25, 25, 25, 25, 25,
     26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
     28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28,
@@ -89,7 +89,7 @@ pub(crate) const S_TDEFL_LARGE_DIST_SYM: [u8; 128] = [
 
 /// The extra bits of a match distance (less 1) of 512 and above: `s_tdefl_large_dist_extra`.
 #[rustfmt::skip]
-pub(crate) const S_TDEFL_LARGE_DIST_EXTRA: [u8; 128] = [
+pub(crate) const LARGE_DIST_EXTRA: [u8; 128] = [
     0, 0, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
     12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
     13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
@@ -98,7 +98,7 @@ pub(crate) const S_TDEFL_LARGE_DIST_EXTRA: [u8; 128] = [
 
 /// The table of [`super::mz_crc32`]: `s_crc_table`.
 #[rustfmt::skip]
-pub(crate) const S_CRC_TABLE: [u32; 256] = [
+pub(crate) const CRC_TABLE: [u32; 256] = [
     0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA, 0x076DC419, 0x706AF48F, 0xE963A535, 0x9E6495A3,
     0x0EDB8832, 0x79DCB8A4, 0xE0D5E91E, 0x97D2D988, 0x09B64C2B, 0x7EB17CBD, 0xE7B82D07, 0x90BF1D91,
     0x1DB71064, 0x6AB020F2, 0xF3B97148, 0x84BE41DE, 0x1ADAD47D, 0x6DDDE4EB, 0xF4D4B551, 0x83D385C7,

@@ -1,5 +1,6 @@
-//! Made-up data, the same from a seed here as in the C side of the comparison
-//! (`compare/`), and the dumps the tests run as well as the comparison (`examples/dump.rs`).
+//! Synthetic data, generated from a seed exactly as the C side of the comparison
+//! (`compare/dump_miniz.c`) generates it, and the dump that both the golden tests and
+//! `examples/dump.rs` run.
 
 // (The arithmetic is written as the C side has it; not every user of this module uses all of
 // it.)
@@ -10,6 +11,11 @@
     clippy::manual_checked_ops,
     dead_code
 )]
+
+use miniz_nrp::{
+    AlreadyFinished, Compressor, DecompressError, Flush, Format, Level, Options, Strategy, adler32,
+    compress, compress_with, crc32, decompress_with,
+};
 
 /// The two programs make the same blocks from the same seed: a 64-bit linear congruential
 /// generator, the high half of its state.
@@ -52,7 +58,7 @@ const WORDS: [&str; 16] = [
     "format", "is", "cube", "data",
 ];
 
-/// Made-up data of one of eight kinds, the same in both programs.
+/// Synthetic data of one of eight kinds, the same in both programs.
 pub fn make_data(r: &mut Random) -> Vec<u8> {
     let len = match r.next() % 8 {
         0 => r.next() % 16,
@@ -147,77 +153,92 @@ pub fn make_data(r: &mut Random) -> Vec<u8> {
     buf
 }
 
-fn make_tdefl_flags(r: &mut Random) -> u32 {
-    use miniz_nrp::tdef::*;
+/// A level from -1 (miniz's default) to 10, as the C side numbers them.
+fn level(number: i32) -> Level {
+    if number < 0 {
+        Level::DEFAULT
+    } else {
+        Level::new(number as u8).unwrap()
+    }
+}
+
+/// Compression options of three kinds: those of a level, strategy and format, sometimes with
+/// the checksum asked for; a random search depth with random flags; and a very shallow search.
+fn make_options(r: &mut Random) -> Options {
     match r.next() % 4 {
         0 | 1 => {
-            let level = (r.next() % 12) as i32 - 1;
-            let strategy = if r.next() % 3 != 0 {
-                0
+            let level = level((r.next() % 12) as i32 - 1);
+            let strategy = if r.next() % 3 != 0 { 0 } else { r.next() % 5 };
+            let strategy = [
+                Strategy::Default,
+                Strategy::Filtered,
+                Strategy::HuffmanOnly,
+                Strategy::Rle,
+                Strategy::Fixed,
+            ][strategy as usize];
+            let format = if r.next() & 1 != 0 {
+                Format::Zlib
             } else {
-                (r.next() % 5) as i32
+                Format::Raw
             };
-            let window_bits = if r.next() & 1 != 0 { 15 } else { -15 };
-            let mut flags = tdefl_create_comp_flags_from_zip_params(level, window_bits, strategy);
+            let mut options = Options::from_level(level, format, strategy);
             if r.next() & 1 != 0 {
-                flags |= TDEFL_COMPUTE_ADLER32;
+                options.compute_adler32 = true;
             }
-            flags
+            options
         }
         2 => {
-            let mut flags = r.next() % 4096;
-            for flag in [
-                TDEFL_WRITE_ZLIB_HEADER,
-                TDEFL_COMPUTE_ADLER32,
-                TDEFL_GREEDY_PARSING_FLAG,
-                TDEFL_RLE_MATCHES,
-                TDEFL_FILTER_MATCHES,
-                TDEFL_FORCE_ALL_STATIC_BLOCKS,
-                TDEFL_FORCE_ALL_RAW_BLOCKS,
-            ] {
-                if r.next() & 3 == 0 {
-                    flags |= flag;
-                }
+            let max_probes = (r.next() % 4096) as u16;
+            let mut flag = || r.next() & 3 == 0;
+            Options {
+                max_probes,
+                format: if flag() { Format::Zlib } else { Format::Raw },
+                compute_adler32: flag(),
+                greedy_parsing: flag(),
+                rle_matches: flag(),
+                filter_matches: flag(),
+                force_static_blocks: flag(),
+                force_raw_blocks: flag(),
             }
-            flags
         }
         _ => {
-            let mut flags = r.next() % 8;
-            if r.next() & 1 != 0 {
-                flags |= TDEFL_WRITE_ZLIB_HEADER;
+            let max_probes = (r.next() % 8) as u16;
+            Options {
+                max_probes,
+                format: if r.next() & 1 != 0 {
+                    Format::Zlib
+                } else {
+                    Format::Raw
+                },
+                greedy_parsing: false,
+                compute_adler32: false,
+                rle_matches: false,
+                filter_matches: false,
+                force_static_blocks: false,
+                force_raw_blocks: false,
             }
-            flags
         }
     }
 }
 
-/// Decompresses with all the input and all the room at once and adds what came of it to the
-/// hash: the status, and when it is done how much of the input it took and the bytes. True
-/// when it is done.
-fn miniz_decompress(hash: &mut Hash, stream: &[u8], room: usize, zlib: bool) -> bool {
-    use miniz_nrp::tinfl::*;
-    match tinfl_decompress(
-        stream,
-        room,
-        if zlib {
-            TINFL_FLAG_PARSE_ZLIB_HEADER
-        } else {
-            0
-        },
-    ) {
-        Ok((bytes, taken)) => {
+/// Decompresses with all the input and all the room at once and adds the outcome to the
+/// hash: the status, as miniz numbers it, and when it succeeds, the input it took and the
+/// bytes. True when it succeeds.
+fn miniz_decompress(hash: &mut Hash, stream: &[u8], room: usize, format: Format) -> bool {
+    match decompress_with(stream, format, room) {
+        Ok(result) => {
             hash.add(&0u32.to_le_bytes());
-            hash.add(&(taken as u32).to_le_bytes());
-            hash.add(&(bytes.len() as u32).to_le_bytes());
-            hash.add(&bytes);
+            hash.add(&(result.bytes_read as u32).to_le_bytes());
+            hash.add(&(result.data.len() as u32).to_le_bytes());
+            hash.add(&result.data);
             true
         }
         Err(error) => {
             let status: i32 = match error {
-                TinflError::CannotMakeProgress => -4,
-                TinflError::Adler32Mismatch => -2,
-                TinflError::Failed => -1,
-                TinflError::HasMoreOutput => 2,
+                DecompressError::Truncated => -4,
+                DecompressError::ChecksumMismatch => -2,
+                DecompressError::Invalid => -1,
+                DecompressError::OutputTooLarge => 2,
             };
             hash.add(&status.to_le_bytes());
             false
@@ -225,13 +246,21 @@ fn miniz_decompress(hash: &mut Hash, stream: &[u8], room: usize, zlib: bool) -> 
     }
 }
 
-/// The `miniz` dump: made-up data compressed with flags from every level and strategy and with
-/// made-up flags, in one go and in pieces with flushes between; each stream decompressed
-/// whole, into too little room, damaged, cut short and with bytes after it; and made-up bytes
-/// decompressed.
+/// The status miniz's `tdefl_compress_buffer` gives: 0 to go on, 1 when done, -2 when the
+/// stream was already done.
+fn status(compressor: &Compressor, result: Result<(), AlreadyFinished>) -> i32 {
+    match result {
+        Ok(()) if compressor.is_finished() => 1,
+        Ok(()) => 0,
+        Err(AlreadyFinished) => -2,
+    }
+}
+
+/// The `miniz` dump: synthetic data compressed with the options of every level and strategy
+/// and with random options, in one call and in pieces with flushes between; each stream
+/// decompressed whole, into too little room, damaged, truncated and with bytes after it; and
+/// random bytes decompressed.
 pub fn miniz(seed: u64, count: u32) -> String {
-    use miniz_nrp::tdef::*;
-    use miniz_nrp::{MZ_ADLER32_INIT, MZ_CRC32_INIT, compress, mz_adler32, mz_crc32};
     let mut r = Random { state: seed };
     let mut hash = Hash::new();
     let (mut done, mut refused) = (0u32, 0u32);
@@ -241,68 +270,75 @@ pub fn miniz(seed: u64, count: u32) -> String {
     for i in 0..count {
         let data = make_data(&mut r);
         let len = data.len();
-        let flags = make_tdefl_flags(&mut r);
-        let zlib = flags & TDEFL_WRITE_ZLIB_HEADER != 0;
-        let stream = tdefl_compress_mem_to_heap(&data, flags);
+        let options = make_options(&mut r);
+        let format = options.format;
+        let stream = compress_with(&data, &options);
         hash.add(&(stream.len() as u32).to_le_bytes());
         hash.add(&stream);
         in_total += len as u64;
         out_total += stream.len() as u64;
 
         // The checksums, and what mz_compress2 writes for a level.
-        hash.add(&mz_adler32(MZ_ADLER32_INIT, &data).to_le_bytes());
-        hash.add(&mz_crc32(MZ_CRC32_INIT, &data).to_le_bytes());
+        hash.add(&adler32(&data).to_le_bytes());
+        hash.add(&crc32(&data).to_le_bytes());
         if i % 4 == 0 {
-            let level = (r.next() % 12) as i32 - 1;
+            let level = level((r.next() % 12) as i32 - 1);
             let packed = compress(&data, level);
             hash.add(&(packed.len() as u32).to_le_bytes());
             hash.add(&packed);
         }
 
         // In pieces, with flushes between.
-        let mut comp = TdeflCompressor::new(flags);
+        let mut comp = Compressor::new(&options);
         let mut pos = 0;
         while pos < len {
             let n = (1 + r.next() as usize % 5000).min(len - pos);
             let how = match r.next() % 8 {
-                0 => TdeflFlush::SyncFlush,
-                1 => TdeflFlush::FullFlush,
-                _ => TdeflFlush::NoFlush,
+                0 => Flush::Sync,
+                1 => Flush::Full,
+                _ => Flush::None,
             };
-            hash.add(&(comp.compress_buffer(&data[pos..pos + n], how) as i32).to_le_bytes());
+            let result = comp.compress(&data[pos..pos + n], how);
+            hash.add(&status(&comp, result).to_le_bytes());
             pos += n;
         }
-        hash.add(&(comp.compress_buffer(&[], TdeflFlush::Finish) as i32).to_le_bytes());
+        let result = comp.compress(&[], Flush::Finish);
+        hash.add(&status(&comp, result).to_le_bytes());
         hash.add(&comp.adler32().to_le_bytes());
         let pieces = comp.take_output();
         hash.add(&(pieces.len() as u32).to_le_bytes());
         hash.add(&pieces);
-        tally(miniz_decompress(&mut hash, &pieces, len, zlib));
+        tally(miniz_decompress(&mut hash, &pieces, len, format));
 
         // The stream back: whole, into too little room, damaged, cut short, with more after.
-        tally(miniz_decompress(&mut hash, &stream, len, zlib));
+        tally(miniz_decompress(&mut hash, &stream, len, format));
         if len > 0 {
-            miniz_decompress(&mut hash, &stream, len - 1 - r.next() as usize % len, zlib);
+            miniz_decompress(
+                &mut hash,
+                &stream,
+                len - 1 - r.next() as usize % len,
+                format,
+            );
         }
         let mut copy = stream.clone();
         for _ in 0..1 + r.next() % 3 {
             let bit = r.next() % (stream.len() as u32 * 8);
             copy[(bit >> 3) as usize] ^= 1 << (bit & 7);
         }
-        tally(miniz_decompress(&mut hash, &copy, len + 64, zlib));
+        tally(miniz_decompress(&mut hash, &copy, len + 64, format));
         miniz_decompress(
             &mut hash,
             &stream[..r.next() as usize % stream.len()],
             len,
-            zlib,
+            format,
         );
         let mut copy = stream.clone();
         for _ in 0..4 {
             copy.push(r.next() as u8);
         }
-        miniz_decompress(&mut hash, &copy, len, zlib);
+        miniz_decompress(&mut hash, &copy, len, format);
 
-        // Made-up bytes as a stream.
+        // Random bytes as a stream.
         let mut garbage: Vec<u8> = (0..1 + r.next() % 64)
             .map(|_| (r.next() >> 7) as u8)
             .collect();
@@ -317,7 +353,11 @@ pub fn miniz(seed: u64, count: u32) -> String {
             &mut hash,
             &garbage,
             4096,
-            garbage[0] == 0x78,
+            if garbage[0] == 0x78 {
+                Format::Zlib
+            } else {
+                Format::Raw
+            },
         ));
 
         if (i + 1) % 200 == 0 || i + 1 == count {

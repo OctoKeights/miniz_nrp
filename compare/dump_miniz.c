@@ -1,13 +1,13 @@
 /* The C half of the comparison with miniz (https://github.com/richgel999/miniz): runs its
-   compressor and its decompressor over made-up data and prints a running hash of what comes
+   compressor and its decompressor over synthetic data and prints a running hash of what comes
    out. examples/dump.rs prints the same from the Rust port, and compare/compare.sh compares
    the two.
 
-     dump miniz <seed> <count>   made-up data of eight kinds and many sizes, compressed with
-                                 flags from every level and strategy and with made-up flags,
-                                 in one go and in pieces with flushes between; each stream
-                                 decompressed whole, into too little room, damaged, cut short
-                                 and with bytes after it; and made-up bytes decompressed */
+     dump miniz <seed> <count>   synthetic data of eight kinds and many sizes, compressed with
+                                 the options of every level and strategy and with random options,
+                                 in one call and in pieces with flushes between; each stream
+                                 decompressed whole, into too little room, damaged, truncated
+                                 and with bytes after it; and random bytes decompressed */
 #include "miniz.h"
 
 #include <stdint.h>
@@ -48,7 +48,7 @@ static void AddNumber(uint32_t value)
 
 static const char *const kWords[16] = { "the", "texture", "block", "of", "and", "compress", "a", "level", "mip", "to", "pixels", "in", "format", "is", "cube", "data" };
 
-/* Made-up data: its length, then its bytes, of one of eight kinds. */
+/* Synthetic data: its length, then its bytes, of one of eight kinds. */
 static size_t MakeData(uint8_t *buf)
 {
     size_t len = 0, at = 0, i;
@@ -267,7 +267,7 @@ int main(int argc, char **argv)
         free(comp);
         free(pieces.bytes);
 
-        /* The stream back: whole, into too little room, damaged, cut short, with more after. */
+        /* The stream back: whole, into too little room, damaged, truncated, with more after. */
         if (Decompress(stream, stream_size, room, len, zlib) == TINFL_STATUS_DONE)
             ++done;
         else
@@ -290,7 +290,7 @@ int main(int argc, char **argv)
             copy[stream_size + k] = (uint8_t)Next();
         Decompress(copy, stream_size + 4, room, len, zlib);
 
-        /* Made-up bytes as a stream. */
+        /* Synthetic bytes as a stream. */
         {
             const size_t garbage = 1 + Next() % 64;
             for (k = 0; k < garbage; ++k)

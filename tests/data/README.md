@@ -1,12 +1,13 @@
 # Recorded results
 
-`miniz_expected.txt` is what miniz makes of made-up data, as `compare/dump_miniz.c` prints it;
-`tests/golden.rs` checks that the port prints the same. To make it again, run the comparison
-once (it builds the original's side), then that by itself:
+`miniz_expected.txt` holds the hashes `compare/dump_miniz.c` prints when built against miniz
+v3.1.0, for synthetic data. `tests/golden.rs` checks that miniz_nrp prints the same.
+
+To record them again, run the comparison once, which builds miniz's side, then run that
+program directly:
 
     compare/compare.sh <checkout of miniz> 3000 1
     ref="${TMPDIR:-/tmp}/miniz_nrp-compare/dump-miniz"
     { "$ref" miniz 3 120; "$ref" miniz 8 120; } > tests/data/miniz_expected.txt
 
-No picture or file from anywhere is in this repository: every file and stream the tests and
-the comparison use is made up from a seed.
+All test data is generated from seeds; no external files are used.

@@ -1,11 +1,11 @@
-//! The port of miniz against results recorded from the original, so that a change shows
-//! without a C compiler at hand.
+//! miniz_nrp against hashes recorded from miniz, so that any change in output shows without a
+//! C compiler.
 //!
-//! `tests/data/miniz_expected.txt` is what `compare/dump_miniz.c`, built against miniz (see
-//! `compare/compare.sh`), prints for `miniz 3 120` and `miniz 8 120`: a hash of what made-up
-//! data compresses to with every kind of flags, in one go and in pieces, and of what each
-//! stream, whole and damaged, decompresses to or is refused with. `compare/compare.sh` is the
-//! full comparison.
+//! `tests/data/miniz_expected.txt` is what `compare/dump_miniz.c`, built against miniz v3.1.0,
+//! prints for `miniz 3 120` and `miniz 8 120`: hashes of synthetic data compressed with the
+//! options of every level and strategy and with random options, in one call and in pieces, and
+//! of what each stream decompresses to, intact and damaged, or the error it gives.
+//! `compare/compare.sh` runs the full comparison.
 
 mod made_up;
 
