@@ -2,15 +2,8 @@
 //! (`compare/dump_miniz.c`) generates it, and the dump that both the golden tests and
 //! `examples/dump.rs` run.
 
-// (The arithmetic is written as the C side has it; not every user of this module uses all of
-// it.)
-#![allow(
-    clippy::manual_is_multiple_of,
-    clippy::needless_range_loop,
-    clippy::manual_div_ceil,
-    clippy::manual_checked_ops,
-    dead_code
-)]
+// (The golden tests and the dump each use only part of this module.)
+#![allow(dead_code)]
 
 use std::fmt::Write;
 
@@ -114,7 +107,7 @@ pub fn make_data(r: &mut Random) -> Vec<u8> {
         // copies of what came before
         4 => {
             while buf.len() < len {
-                if buf.len() < 64 || r.next() % 4 == 0 {
+                if buf.len() < 64 || r.next().is_multiple_of(4) {
                     buf.push((r.next() >> 9) as u8);
                 } else {
                     let reach = buf.len().min(40000);
@@ -170,7 +163,11 @@ fn make_options(r: &mut Random) -> Options {
     match r.next() % 4 {
         0 | 1 => {
             let level = level((r.next() % 12) as i32 - 1);
-            let strategy = if r.next() % 3 != 0 { 0 } else { r.next() % 5 };
+            let strategy = if !r.next().is_multiple_of(3) {
+                0
+            } else {
+                r.next() % 5
+            };
             let strategy = [
                 Strategy::Default,
                 Strategy::Filtered,
