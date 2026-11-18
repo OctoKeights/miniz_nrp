@@ -1,4 +1,4 @@
-//! miniz_nrp against hashes recorded from miniz, so that any change in output shows without a
+//! `miniz_nrp` against hashes recorded from miniz, so that any change in output shows without a
 //! C compiler.
 //!
 //! `tests/data/miniz_expected.txt` is what `compare/dump_miniz.c`, built against miniz v3.1.0,

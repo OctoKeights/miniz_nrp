@@ -124,6 +124,7 @@ struct Deferred {
 
 impl Compressor {
     /// A compressor that compresses with `options` (`tdefl_init`).
+    #[must_use]
     pub fn new(options: &Options) -> Compressor {
         let probes = u32::from(options.max_probes.min(0xFFF));
         Compressor {
@@ -154,10 +155,22 @@ impl Compressor {
     /// The compressed bytes collect in the compressor until [`Compressor::take_output`] takes
     /// them. [`Flush::Finish`] ends the stream, after which the compressor accepts nothing
     /// more.
+    ///
+    /// # Errors
+    ///
+    /// [`AlreadyFinished`] if the stream has already been finished; nothing is compressed
+    /// then.
     pub fn compress(&mut self, input: &[u8], flush: Flush) -> Result<(), AlreadyFinished> {
         if self.finished {
             return Err(AlreadyFinished);
         }
+        self.compress_unfinished(input, flush);
+        Ok(())
+    }
+
+    /// [`Compressor::compress`] for a compressor whose stream is not yet finished.
+    pub(crate) fn compress_unfinished(&mut self, input: &[u8], flush: Flush) {
+        debug_assert!(!self.finished);
         self.compress_input(input, flush);
         if self.options.format == Format::Zlib || self.options.compute_adler32 {
             self.adler32 = adler32_update(self.adler32, input);
@@ -172,15 +185,16 @@ impl Compressor {
                 self.dict_len = 0;
             }
         }
-        Ok(())
     }
 
     /// Whether the stream has been finished with [`Flush::Finish`].
+    #[must_use]
     pub fn is_finished(&self) -> bool {
         self.finished
     }
 
     /// The compressed bytes not yet taken.
+    #[must_use]
     pub fn output(&self) -> &[u8] {
         &self.bits.out
     }
@@ -193,6 +207,7 @@ impl Compressor {
     /// The Adler-32 checksum of the input so far (`tdefl_get_adler32`): computed for zlib
     /// streams, and for raw DEFLATE when [`Options::compute_adler32`] asks for it, and 1
     /// otherwise.
+    #[must_use]
     pub fn adler32(&self) -> u32 {
         self.adler32
     }
@@ -369,13 +384,13 @@ impl Compressor {
         if max_len <= best_len {
             return (best_dist, best_len);
         }
-        let dict = &self.dict[..];
+        let window = &self.dict[..];
         let pos = (lookahead_pos & DICT_MASK) as usize;
         let mut probe_pos = pos;
         let mut probes_left = self.max_probes[usize::from(best_len >= 32)];
         // The two bytes a longer match must have at the end of the best length so far.
-        let mut c0 = dict[pos + best_len as usize];
-        let mut c1 = dict[pos + best_len as usize - 1];
+        let mut end_byte = window[pos + best_len as usize];
+        let mut before_end = window[pos + best_len as usize - 1];
         loop {
             // Follow the chain to the next candidate with those two bytes, three links per
             // probe.
@@ -394,8 +409,8 @@ impl Compressor {
                         return (best_dist, best_len);
                     }
                     probe_pos = (next & DICT_MASK) as usize;
-                    if dict[probe_pos + best_len as usize] == c0
-                        && dict[probe_pos + best_len as usize - 1] == c1
+                    if window[probe_pos + best_len as usize] == end_byte
+                        && window[probe_pos + best_len as usize - 1] == before_end
                     {
                         break 'probe dist;
                     }
@@ -405,16 +420,16 @@ impl Compressor {
                 return (best_dist, best_len);
             }
             let len = common_prefix(
-                &dict[pos..pos + max_len as usize],
-                &dict[probe_pos..probe_pos + max_len as usize],
+                &window[pos..pos + max_len as usize],
+                &window[probe_pos..probe_pos + max_len as usize],
             ) as u32;
             if len > best_len {
                 (best_dist, best_len) = (dist, len);
                 if len == max_len {
                     return (best_dist, best_len);
                 }
-                c0 = dict[pos + len as usize];
-                c1 = dict[pos + len as usize - 1];
+                end_byte = window[pos + len as usize];
+                before_end = window[pos + len as usize - 1];
             }
         }
     }
@@ -567,14 +582,14 @@ impl Compressor {
                 }
             } else {
                 rle.end_zeros();
-                if len != prev {
-                    rle.end_repeats(prev);
-                    rle.push(len);
-                } else {
+                if len == prev {
                     rle.repeats += 1;
                     if rle.repeats == 6 {
                         rle.end_repeats(prev);
                     }
+                } else {
+                    rle.end_repeats(prev);
+                    rle.push(len);
                 }
             }
             prev = len;

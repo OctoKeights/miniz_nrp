@@ -22,11 +22,10 @@ fn main() {
         std::process::exit(2);
     };
     let _ = seed;
-    match what.as_str() {
-        "miniz" => print!("{}", made_up::miniz(seed, count)),
-        _ => {
-            eprintln!("unknown dump {what}");
-            std::process::exit(2);
-        }
+    if what.as_str() == "miniz" {
+        print!("{}", made_up::miniz(seed, count));
+    } else {
+        eprintln!("unknown dump {what}");
+        std::process::exit(2);
     }
 }

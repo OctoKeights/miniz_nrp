@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.1
+
+- **Stricter lints, enforced in CI.** `Cargo.toml` turns on clippy's pedantic group for every
+  target, and forbids `unsafe` code in the tests, examples and benchmarks as well as the
+  library. The functions that return a `Result` document their errors.
+
+- **No `expect` in the library.** `compress_with` no longer goes through a check that cannot
+  fail.
+
+- Output is unchanged, checked against miniz on 30,000 sources (809 MB), and so is speed.
+
 ## 0.2.0
 
 - **Breaking: an idiomatic API.** Compression levels are a `Level` type (0 to 10, or

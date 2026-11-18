@@ -12,6 +12,8 @@
     dead_code
 )]
 
+use std::fmt::Write;
+
 use miniz_nrp::{
     AlreadyFinished, Compressor, DecompressError, Flush, Format, Level, Options, Strategy, adler32,
     compress, compress_with, crc32, decompress_with,
@@ -27,8 +29,8 @@ impl Random {
     pub fn next(&mut self) -> u32 {
         self.state = self
             .state
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1442695040888963407);
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
         (self.state >> 32) as u32
     }
 }
@@ -41,14 +43,14 @@ pub struct Hash {
 impl Hash {
     pub fn new() -> Hash {
         Hash {
-            value: 14695981039346656037,
+            value: 14_695_981_039_346_656_037,
         }
     }
 
     pub fn add(&mut self, data: &[u8]) {
         for &byte in data {
             self.value ^= u64::from(byte);
-            self.value = self.value.wrapping_mul(1099511628211);
+            self.value = self.value.wrapping_mul(1_099_511_628_211);
         }
     }
 }
@@ -66,7 +68,7 @@ pub fn make_data(r: &mut Random) -> Vec<u8> {
         2 | 3 => r.next() % 5000,
         4 | 5 => r.next() % 40000,
         6 => 60000 + r.next() % 20000,
-        _ => r.next() % 200000,
+        _ => r.next() % 200_000,
     } as usize;
     let kind = r.next() % 8;
     let mut buf = Vec::with_capacity(len);
@@ -189,7 +191,7 @@ fn make_options(r: &mut Random) -> Options {
         }
         2 => {
             let max_probes = (r.next() % 4096) as u16;
-            let mut flag = || r.next() & 3 == 0;
+            let mut flag = || r.next().trailing_zeros() >= 2;
             Options {
                 max_probes,
                 format: if flag() { Format::Zlib } else { Format::Raw },
@@ -321,7 +323,7 @@ pub fn miniz(seed: u64, count: u32) -> String {
             );
         }
         let mut copy = stream.clone();
-        for _ in 0..1 + r.next() % 3 {
+        for _ in 0..=(r.next() % 3) {
             let bit = r.next() % (stream.len() as u32 * 8);
             copy[(bit >> 3) as usize] ^= 1 << (bit & 7);
         }
@@ -339,7 +341,7 @@ pub fn miniz(seed: u64, count: u32) -> String {
         miniz_decompress(&mut hash, &copy, len, format);
 
         // Random bytes as a stream.
-        let mut garbage: Vec<u8> = (0..1 + r.next() % 64)
+        let mut garbage: Vec<u8> = (0..=(r.next() % 64))
             .map(|_| (r.next() >> 7) as u8)
             .collect();
         if r.next() & 1 != 0 {
@@ -361,7 +363,7 @@ pub fn miniz(seed: u64, count: u32) -> String {
         ));
 
         if (i + 1) % 200 == 0 || i + 1 == count {
-            out += &format!("miniz {} {:016x}\n", i + 1, hash.value);
+            writeln!(out, "miniz {} {:016x}", i + 1, hash.value).unwrap();
         }
     }
     out + &format!(

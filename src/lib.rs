@@ -61,6 +61,7 @@ impl Level {
     pub const UBER: Level = Level(10);
 
     /// The level `level`, if it is 0 to 10.
+    #[must_use]
     pub const fn new(level: u8) -> Option<Level> {
         if level <= 10 {
             Some(Level(level as i8))
@@ -70,6 +71,7 @@ impl Level {
     }
 
     /// The level as a number, or `None` for [`Level::DEFAULT`].
+    #[must_use]
     pub const fn get(self) -> Option<u8> {
         if self.0 < 0 { None } else { Some(self.0 as u8) }
     }
@@ -147,6 +149,8 @@ pub enum Strategy {
 /// let stream = compress_with(b"some data, some data", &options);
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+// (Independent switches, each one of miniz's flags; `Options::from_level` sets them.)
+#[allow(clippy::struct_excessive_bools)]
 pub struct Options {
     /// zlib or raw DEFLATE (`TDEFL_WRITE_ZLIB_HEADER`).
     pub format: Format,
@@ -225,6 +229,7 @@ impl Default for Options {
 }
 
 /// Compresses `data` to a zlib stream at `level` (`mz_compress2`).
+#[must_use]
 pub fn compress(data: &[u8], level: Level) -> Vec<u8> {
     compress_with(
         data,
@@ -235,17 +240,21 @@ pub fn compress(data: &[u8], level: Level) -> Vec<u8> {
 /// Compresses `data` with `options` (`tdefl_compress_mem_to_heap`).
 ///
 /// Data that does not compress can come out slightly larger than it went in.
+#[must_use]
 pub fn compress_with(data: &[u8], options: &Options) -> Vec<u8> {
     let mut compressor = Compressor::new(options);
-    compressor
-        .compress(data, Flush::Finish)
-        .expect("a new compressor is not finished");
+    compressor.compress_unfinished(data, Flush::Finish);
     compressor.take_output()
 }
 
 /// Decompresses a zlib stream that holds no more than `max_len` bytes (`mz_uncompress`).
 ///
 /// Any input after the end of the stream is ignored.
+///
+/// # Errors
+///
+/// A [`DecompressError`] if the stream is cut short, is not a valid zlib stream, fails its
+/// checksum, or holds more than `max_len` bytes.
 pub fn decompress(stream: &[u8], max_len: usize) -> Result<Vec<u8>, DecompressError> {
     decompress_with(stream, Format::Zlib, max_len).map(|result| result.data)
 }
@@ -269,6 +278,11 @@ pub fn decompress(stream: &[u8], max_len: usize) -> Result<Vec<u8>, DecompressEr
 /// let second = decompress_with(&input[first.bytes_read..], Format::Raw, 16).unwrap();
 /// assert_eq!(second.data, b"second");
 /// ```
+///
+/// # Errors
+///
+/// A [`DecompressError`] if the stream is cut short, is not valid, fails its checksum (zlib
+/// only), or holds more than `max_len` bytes.
 pub fn decompress_with(
     stream: &[u8],
     format: Format,
@@ -314,12 +328,14 @@ impl fmt::Display for DecompressError {
 impl std::error::Error for DecompressError {}
 
 /// The Adler-32 checksum of `data`, as zlib streams record it (`mz_adler32`).
+#[must_use]
 pub fn adler32(data: &[u8]) -> u32 {
     adler32_update(1, data)
 }
 
 /// Continues the Adler-32 checksum `adler` over `data`: the checksum of everything given so
 /// far.
+#[must_use]
 pub fn adler32_update(adler: u32, data: &[u8]) -> u32 {
     // 5,552 bytes is the most the two sums can take before they must be reduced.
     const CHUNK: usize = 5552;
@@ -336,11 +352,13 @@ pub fn adler32_update(adler: u32, data: &[u8]) -> u32 {
 }
 
 /// The CRC-32 checksum of `data`, as gzip and PNG use it (`mz_crc32`).
+#[must_use]
 pub fn crc32(data: &[u8]) -> u32 {
     crc32_update(0, data)
 }
 
 /// Continues the CRC-32 checksum `crc` over `data`: the checksum of everything given so far.
+#[must_use]
 pub fn crc32_update(crc: u32, data: &[u8]) -> u32 {
     !data.iter().fold(!crc, |crc, &byte| {
         (crc >> 8) ^ tables::CRC_TABLE[((crc ^ u32::from(byte)) & 0xFF) as usize]
@@ -384,7 +402,7 @@ mod tests {
         let mut data = Vec::new();
         let mut state = 7u32;
         for i in 0..70_000u32 {
-            state = state.wrapping_mul(1664525).wrapping_add(1013904223);
+            state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
             // Runs, repeats and noise.
             data.push(match (i / 3000) % 4 {
                 0 => (i / 50) as u8,
@@ -402,7 +420,7 @@ mod tests {
         let mut sizes = Vec::new();
         for level in [Level::DEFAULT]
             .into_iter()
-            .chain((0..=10).flat_map(Level::new))
+            .chain((0..=10).filter_map(Level::new))
         {
             let stream = compress(&data, level);
             assert_eq!(decompress(&stream, data.len()).unwrap(), data, "{level:?}");
@@ -459,8 +477,8 @@ mod tests {
         let mut state = 0x9E37_79B9_7F4A_7C15u64;
         let mut next = move || {
             state = state
-                .wrapping_mul(6364136223846793005)
-                .wrapping_add(1442695040888963407);
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
             (state >> 33) as u32
         };
         let options = Options {
@@ -477,10 +495,10 @@ mod tests {
         );
         for i in 0..6000 {
             let stream: Vec<u8> = if i % 2 == 0 {
-                (0..1 + next() % 80).map(|_| next() as u8).collect()
+                (0..=(next() % 80)).map(|_| next() as u8).collect()
             } else {
                 let mut stream = good.clone();
-                for _ in 0..1 + next() % 4 {
+                for _ in 0..=(next() % 4) {
                     let at = next() as usize % stream.len();
                     stream[at] = next() as u8;
                 }
