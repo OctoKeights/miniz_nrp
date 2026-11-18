@@ -163,10 +163,10 @@ fn make_options(r: &mut Random) -> Options {
     match r.next() % 4 {
         0 | 1 => {
             let level = level((r.next() % 12) as i32 - 1);
-            let strategy = if !r.next().is_multiple_of(3) {
-                0
-            } else {
+            let strategy = if r.next().is_multiple_of(3) {
                 r.next() % 5
+            } else {
+                0
             };
             let strategy = [
                 Strategy::Default,
