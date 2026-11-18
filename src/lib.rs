@@ -533,7 +533,7 @@ mod tests {
             compressor.compress(b"more", Flush::Finish),
             Err(AlreadyFinished)
         );
-        assert!(compressor.take_output().is_empty());
+        assert_eq!(compressor.take_output(), b"");
         // A sync flush in the middle leaves a stream that still holds everything.
         let mut compressor = Compressor::new(&options);
         compressor.compress(&data[..40_000], Flush::Sync).unwrap();
